@@ -116,8 +116,16 @@ class CustomSparse:
 
     def preconditioned_cond(self,precond,precond_inv):
         condition_num  = linalg.norm(precond_inv * self.A)
-        condition_num *= linalg.norm(self.Q * self.inverse_D * self.Q.transpose() * precond)
+        condition_num *= linalg.norm(self.invert() * precond)
         return condition_num
+
+    def condition(self):
+        maxi = max(abs(self.D.diagonal()))
+        mini = min(abs(self.D.diagonal()))
+        return maxi / mini
+
+    def print(self):
+        logging.debug(f"A = \n {self.A.todense()}")
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG , format='[%(asctime)s] - [%(levelname)s] - %(message)s')
@@ -137,3 +145,5 @@ if __name__ == "__main__":
     for matrix in custom.small_matrices():
         #print(matrix)
         print("")
+
+    custom.print()
