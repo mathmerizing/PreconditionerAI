@@ -2,7 +2,7 @@ import numpy as np
 import random
 import math
 from random import randint
-from scipy.sparse import dok_matrix , csc_matrix , identity , linalg, save_npz, load_npz
+from scipy.sparse import dok_matrix , csc_matrix , identity , linalg, save_npz, load_npz 
 from my_utils import timeit
 import logging
 import os
@@ -90,12 +90,14 @@ class CustomSparse:
 
         self.dim = self.A.shape[0]
         # self.prob can't be reconstructed and doesn't need to be
-
+    
     def small_matrices(self):
         # yield 128 x 128 matrices
 
         # if dim is not a multiple of 128, the last matrix is
         # "padded by an identity matrix"
+        non_zero_indices = self.A.nonzero()
+        i = 0
         if self.dim % 128 != 0:
             logging.debug("self.dim not divisible by 128.")
             logging.debug("Last matrix will be padded.")
@@ -106,13 +108,17 @@ class CustomSparse:
 
             upper_limit = min((k+1)*128,self.dim)
             start = k*128
-            for i in range(start,upper_limit):
-                row = self.A.getrow(i)
-                for j in range(start,upper_limit):
-                    val = row.getcol(j).todense()[0][0]
-                    tmp[i-start,j-start] = val
+            
+            while(i < len(non_zero_indices[0]) and non_zero_indices[0][i] < upper_limit and non_zero_indices[0][i] >= start):
+                if (non_zero_indices[1][i] >= start and non_zero_indices[1][i] < upper_limit ):
+                    # write in new matrix
+                    tmp[non_zero_indices[0][i]-start,non_zero_indices[1][i]-start] = self.A[non_zero_indices[0][i],non_zero_indices[1][i]]
+                    i += 1
+                else:
+                    i += 1
 
             yield tmp
+    
 
     def preconditioned_cond(self,precond,precond_inv):
         condition_num  = linalg.norm(precond_inv * self.A)
@@ -126,6 +132,9 @@ class CustomSparse:
 
     def print(self):
         logging.debug(f"A = \n {self.A.todense()}")
+
+    
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG , format='[%(asctime)s] - [%(levelname)s] - %(message)s')
@@ -141,9 +150,14 @@ if __name__ == "__main__":
     new_custom = CustomSparse()
     new_custom.load("test1")
     logging.debug(f"Loading error: {(custom.invert()-new_custom.invert()).max()}")
-
+    """
+    for matrix1,matrix2 in zip(custom.small_matrices(),custom.small_matrices2()):
+        print((matrix1-matrix2).max())
+        print("")
+    """
     for matrix in custom.small_matrices():
-        #print(matrix)
         print("")
 
+    
     custom.print()
+
