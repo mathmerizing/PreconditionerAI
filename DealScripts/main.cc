@@ -255,7 +255,7 @@ namespace FEMatrixGenerator
     void FEProblem<dim>::run()
     {
         // create grid
-        int global_refinements = 0; //3;
+        int global_refinements = 3;
         GridGenerator::hyper_ball(triangulation);
         triangulation.refine_global(global_refinements);
 

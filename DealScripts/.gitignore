@@ -3,3 +3,6 @@ cmake_install.cmake
 FEMatrixGenerator
 Makefile
 CMakeFiles/
+dataset/none/*.txt
+dataset/cuthill/*.txt
+dataset/king/*.txt
