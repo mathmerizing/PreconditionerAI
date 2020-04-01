@@ -15,6 +15,7 @@ def jacobiRotation(dim):
     k = randint(0,dim-1)
     Q = identity(dim,dtype=np.float32,format = "dok")
     theta = random.uniform(0,2*math.pi)
+    
     c = math.cos(theta)
     s = math.sin(theta)
 
@@ -68,8 +69,8 @@ class CustomSparse:
 
     @timeit
     def invert(self):
-        return self.perm.transpose() * self.Q.transpose() * self.inverse_D() * self.Q *self.perm 
-
+        # return self.perm.transpose() * self.Q.transpose() * self.inverse_D() * self.Q *self.perm 
+        return linalg.inv(self.A)
     def cuthill(self):
         new_order = reverse_cuthill_mckee(self.A)
         self.perm.indices = new_order.take(self.perm.indices)
@@ -170,7 +171,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.ERROR , format='[%(asctime)s] - [%(levelname)s] - %(message)s')
 
     # creating a test object
-    custom = CustomSparse(25,0.3)
+    custom = CustomSparse(5,0.3)
     custom.create([1,99])
     logging.error(f"Rounding error while inverting: {(custom.invert().dot(custom.A)-identity(custom.dim)).max()}")
     # save a CustomSparse object
@@ -219,13 +220,22 @@ if __name__ == "__main__":
     plt.show()
     """
 
-    logging.error(f"Rounding error while inverting: {(custom.invert().dot(custom.A)-identity(custom.dim)).max()}")
-
+    logging.error(f"Rounding error while inverting: {(custom.invert()*custom.A-identity(custom.dim)).max()}")
+    logging.error(f"Rounding error while inverting: {(custom.D*custom.inverse_D()-identity(custom.dim)).max()}")
+    logging.error(f"Rounding error while inverting: {(custom.perm*custom.perm.transpose()-identity(custom.dim)).max()}")
+    logging.error(f"Rounding error while inverting: {(custom.Q*custom.Q.transpose()-identity(custom.dim)).max()}")
+    logging.error(f"Rounding error while inverting: {(custom.D*custom.inverse_D()-identity(custom.dim)).min()}")
+    logging.error(f"Rounding error while inverting: {(custom.perm*custom.perm.transpose()-identity(custom.dim)).min()}")
+    logging.error(f"Rounding error while inverting: {(custom.Q*custom.Q.transpose()-identity(custom.dim)).min()}")
+    print(custom.invert()*custom.A-identity(custom.dim).todense())
     fig, axs = plt.subplots(3)
     ax1 = axs[0]
     ax2 = axs[1]
     ax3 = axs[2]
-    ax1.spy(custom.perm*M*custom.perm.transpose(), precision = 0.001)    #(M- custom.Q.transpose() * custom.D * custom.Q).todense(), precision=0.01) #
+    ax1.spy(custom.perm.transpose()*M*custom.perm, precision = 0.001)    #(M- custom.Q.transpose() * custom.D * custom.Q).todense(), precision=0.01) #
     ax2.spy(custom.A.todense(), precision=0.001)
-    ax3.spy(custom.perm*M*custom.perm.transpose()-custom.A.todense(), precision=0.001)
-    plt.show()
+    ax3.spy(custom.invert().todense(), precision=0.001)
+    #print(((custom.perm.transpose() * custom.Q.transpose() * custom.inverse_D() * custom.Q *custom.perm)*custom.perm.transpose()*custom.Q.transpose()*custom.D*custom.Q*custom.perm).todense())
+    #plt.show()
+    print("P*P^t")
+    print(custom.inverse_D()*custom.Q*custom.Q.transpose()*custom.D)
