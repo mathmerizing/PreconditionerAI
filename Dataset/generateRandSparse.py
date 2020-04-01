@@ -2,7 +2,8 @@ import numpy as np
 import random
 import math
 from random import randint
-from scipy.sparse import dok_matrix , csc_matrix , identity , linalg, save_npz, load_npz 
+from scipy.sparse import dok_matrix , csc_matrix , identity , linalg, save_npz, load_npz
+from scipy.sparse.csgraph import reverse_cuthill_mckee
 from my_utils import timeit
 import logging
 import os
@@ -33,6 +34,7 @@ class CustomSparse:
         self.A = csc_matrix((dim,dim),dtype=np.float32)
         self.Q = identity(dim,dtype=np.float32,format = "csc")
         self.D = identity(dim,dtype=np.float32,format = "csc")
+        self.perm = identity(dim,dtype=np.float32,format = "csc")
 
     @timeit
     def create(self,eigenvalues,isList = False):
@@ -65,6 +67,11 @@ class CustomSparse:
     def invert(self):
         return self.Q.transpose() * self.inverse_D() * self.Q
 
+    def cuthill(self):
+        new_order = reverse_cuthill_mckee(self.A)
+        self.perm[new_order,new_order]
+        print(new_order)
+
     def save(self,foldername):
         try:
             if not os.path.exists(foldername):
@@ -90,7 +97,7 @@ class CustomSparse:
 
         self.dim = self.A.shape[0]
         # self.prob can't be reconstructed and doesn't need to be
-    
+
     def small_matrices(self):
         # yield 128 x 128 matrices
 
@@ -108,7 +115,7 @@ class CustomSparse:
 
             upper_limit = min((k+1)*128,self.dim)
             start = k*128
-            
+
             while(i < len(non_zero_indices[0]) and non_zero_indices[0][i] < upper_limit and non_zero_indices[0][i] >= start):
                 if (non_zero_indices[1][i] >= start and non_zero_indices[1][i] < upper_limit ):
                     # write in new matrix
@@ -118,7 +125,7 @@ class CustomSparse:
                     i += 1
 
             yield tmp
-    
+
 
     def preconditioned_cond(self,precond,precond_inv):
         condition_num  = linalg.norm(precond_inv * self.A)
@@ -133,15 +140,15 @@ class CustomSparse:
     def print(self):
         logging.debug(f"A = \n {self.A.todense()}")
 
-    
+
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG , format='[%(asctime)s] - [%(levelname)s] - %(message)s')
 
     # creating a test object
-    custom = CustomSparse(1000,0.001)
-    custom.create([1,99999999])
+    custom = CustomSparse(10,0.3)
+    custom.create([1,99])
     logging.debug(f"Rounding error while inverting: {(custom.invert().dot(custom.A)-identity(custom.dim)).max()}")
     # save a CustomSparse object
     custom.save("test1")
@@ -158,6 +165,7 @@ if __name__ == "__main__":
     for matrix in custom.small_matrices():
         print("")
 
-    
-    custom.print()
 
+    custom.print()
+    custom.cuthill()
+    print(custom.perm)
