@@ -7,6 +7,7 @@ from scipy.sparse.csgraph import reverse_cuthill_mckee
 from my_utils import timeit
 import logging
 import os
+import matplotlib.pyplot as plt
 
 # reference: https://en.wikipedia.org/wiki/Jacobi_rotation
 def jacobiRotation(dim):
@@ -69,8 +70,23 @@ class CustomSparse:
 
     def cuthill(self):
         new_order = reverse_cuthill_mckee(self.A)
-        self.perm[new_order,new_order]
-        print(new_order)
+        self.perm.indices = new_order.take(self.perm.indices)
+        self.perm = self.perm.tocsc()
+
+        self.A.indices = new_order.take(self.A.indices)
+        self.A = self.A.tocsc()
+        self.A.indices = new_order.take(self.A.indices)
+        self.Q = self.perm*self.Q
+        """
+        self.Q.indices = new_order.take(self.Q.indices)
+        self.Q = self.Q.tocsc()
+        self.Q.indices = new_order.take(self.Q.indices)
+        
+        self.D.indices = new_order.take(self.D.indices)
+        self.D = self.D.tocsc()
+        self.D.indices = new_order.take(self.D.indices)
+        """
+        
 
     def save(self,foldername):
         try:
@@ -167,5 +183,31 @@ if __name__ == "__main__":
 
 
     custom.print()
+    """
+    fig, axs = plt.subplots(2, 2)
+    ax1 = axs[0, 0]
+    ax2 = axs[0, 1]
+    ax3 = axs[1, 0]
+    ax4 = axs[1, 1]
+
+    x = np.random.randn(20, 20)
+    x[5, :] = 0.
+    x[:, 12] = 0.
+
+
+    ax1.spy(custom.A.todense(), precision=0.1)
+    ax2.spy(custom.perm.todense(), precision=0.1, markersize=5)
+    """
+    print(custom.D.diagonal())
     custom.cuthill()
-    print(custom.perm)
+
+    """
+    ax3.spy(custom.A.todense(), precision=0.1)
+    ax4.spy(custom.perm.todense(), precision=0.1, markersize=5)
+
+    
+
+    plt.show()
+    """
+    
+    logging.debug(f"Rounding error while inverting: {(custom.invert().dot(custom.A)-identity(custom.dim)).max()}")
