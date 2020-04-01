@@ -49,13 +49,15 @@ class CustomSparse:
                 diag[i] = random.uniform(a,b)
 
         self.D.setdiag(diag)
-        self.A = self.D
+        self.A = self.D.copy()
 
         # while matrix is too sparse, apply jacobi rotations
         while self.A.count_nonzero()/(float)(self.dim*self.dim) <= self.prob :
             tempQ = jacobiRotation(self.dim)
             self.A = tempQ.transpose() * self.A * tempQ
             self.Q = self.Q * tempQ
+
+        self.A = self.Q.transpose() * self.D * self.Q
 
     def inverse_D(self):
         diagonal = self.D.diagonal()
@@ -66,27 +68,32 @@ class CustomSparse:
 
     @timeit
     def invert(self):
-        return self.Q.transpose() * self.inverse_D() * self.Q
+        return self.perm.transpose() * self.Q.transpose() * self.inverse_D() * self.Q *self.perm 
 
     def cuthill(self):
         new_order = reverse_cuthill_mckee(self.A)
         self.perm.indices = new_order.take(self.perm.indices)
         self.perm = self.perm.tocsc()
 
+        self.A = self.perm.transpose()*self.A*self.perm
+        """
         self.A.indices = new_order.take(self.A.indices)
         self.A = self.A.tocsc()
         self.A.indices = new_order.take(self.A.indices)
-        self.Q = self.perm*self.Q
+        self.A = self.A.tocsc()
+        """
+        #self.Q = self.perm*self.Q
+
         """
         self.Q.indices = new_order.take(self.Q.indices)
         self.Q = self.Q.tocsc()
         self.Q.indices = new_order.take(self.Q.indices)
-        
+
         self.D.indices = new_order.take(self.D.indices)
         self.D = self.D.tocsc()
         self.D.indices = new_order.take(self.D.indices)
         """
-        
+
 
     def save(self,foldername):
         try:
@@ -160,19 +167,19 @@ class CustomSparse:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG , format='[%(asctime)s] - [%(levelname)s] - %(message)s')
+    logging.basicConfig(level=logging.ERROR , format='[%(asctime)s] - [%(levelname)s] - %(message)s')
 
     # creating a test object
-    custom = CustomSparse(10,0.3)
+    custom = CustomSparse(25,0.3)
     custom.create([1,99])
-    logging.debug(f"Rounding error while inverting: {(custom.invert().dot(custom.A)-identity(custom.dim)).max()}")
+    logging.error(f"Rounding error while inverting: {(custom.invert().dot(custom.A)-identity(custom.dim)).max()}")
     # save a CustomSparse object
-    custom.save("test1")
+    # custom.save("test1")
 
     # test loading a CustomSparse object
-    new_custom = CustomSparse()
-    new_custom.load("test1")
-    logging.debug(f"Loading error: {(custom.invert()-new_custom.invert()).max()}")
+    # new_custom = CustomSparse()
+    # new_custom.load("test1")
+    # logging.debug(f"Loading error: {(custom.invert()-new_custom.invert()).max()}") --> dimension mismatch, since new_custom.perm not loaded properly!!!
     """
     for matrix1,matrix2 in zip(custom.small_matrices(),custom.small_matrices2()):
         print((matrix1-matrix2).max())
@@ -182,7 +189,7 @@ if __name__ == "__main__":
         print("")
 
 
-    custom.print()
+    # custom.print()
     """
     fig, axs = plt.subplots(2, 2)
     ax1 = axs[0, 0]
@@ -198,16 +205,27 @@ if __name__ == "__main__":
     ax1.spy(custom.A.todense(), precision=0.1)
     ax2.spy(custom.perm.todense(), precision=0.1, markersize=5)
     """
+    M = custom.A.copy()
     print(custom.D.diagonal())
+    print(custom.A.todense())
     custom.cuthill()
-
+    print(custom.A.todense())
     """
     ax3.spy(custom.A.todense(), precision=0.1)
     ax4.spy(custom.perm.todense(), precision=0.1, markersize=5)
 
-    
+
 
     plt.show()
     """
-    
-    logging.debug(f"Rounding error while inverting: {(custom.invert().dot(custom.A)-identity(custom.dim)).max()}")
+
+    logging.error(f"Rounding error while inverting: {(custom.invert().dot(custom.A)-identity(custom.dim)).max()}")
+
+    fig, axs = plt.subplots(3)
+    ax1 = axs[0]
+    ax2 = axs[1]
+    ax3 = axs[2]
+    ax1.spy(custom.perm*M*custom.perm.transpose(), precision = 0.001)    #(M- custom.Q.transpose() * custom.D * custom.Q).todense(), precision=0.01) #
+    ax2.spy(custom.A.todense(), precision=0.001)
+    ax3.spy(custom.perm*M*custom.perm.transpose()-custom.A.todense(), precision=0.001)
+    plt.show()
