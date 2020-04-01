@@ -15,7 +15,7 @@ def jacobiRotation(dim):
     k = randint(0,dim-1)
     Q = identity(dim,dtype=np.float32,format = "dok")
     theta = random.uniform(0,2*math.pi)
-    
+
     c = math.cos(theta)
     s = math.sin(theta)
 
@@ -59,6 +59,7 @@ class CustomSparse:
             self.Q = self.Q * tempQ
 
         self.A = self.Q.transpose() * self.D * self.Q
+        self.A = self.A.tocsc()
 
     def inverse_D(self):
         diagonal = self.D.diagonal()
@@ -69,14 +70,17 @@ class CustomSparse:
 
     @timeit
     def invert(self):
-        # return self.perm.transpose() * self.Q.transpose() * self.inverse_D() * self.Q *self.perm 
+        # return self.perm.transpose() * self.Q.transpose() * self.inverse_D() * self.Q *self.perm
+        self.A = self.A.tocsc()
         return linalg.inv(self.A)
+
     def cuthill(self):
         new_order = reverse_cuthill_mckee(self.A)
         self.perm.indices = new_order.take(self.perm.indices)
         self.perm = self.perm.tocsc()
 
         self.A = self.perm.transpose()*self.A*self.perm
+
         """
         self.A.indices = new_order.take(self.A.indices)
         self.A = self.A.tocsc()
@@ -168,12 +172,12 @@ class CustomSparse:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.ERROR , format='[%(asctime)s] - [%(levelname)s] - %(message)s')
+    logging.basicConfig(level=logging.DEBUG , format='[%(asctime)s] - [%(levelname)s] - %(message)s')
 
     # creating a test object
-    custom = CustomSparse(5,0.3)
+    custom = CustomSparse(1313,0.3)
     custom.create([1,99])
-    logging.error(f"Rounding error while inverting: {(custom.invert().dot(custom.A)-identity(custom.dim)).max()}")
+    logging.debug(f"Rounding error while inverting: {(custom.invert().dot(custom.A)-identity(custom.dim)).max()}")
     # save a CustomSparse object
     # custom.save("test1")
 
@@ -187,55 +191,10 @@ if __name__ == "__main__":
         print("")
     """
     for matrix in custom.small_matrices():
-        print("")
+        pass #print("")
 
 
     # custom.print()
-    """
-    fig, axs = plt.subplots(2, 2)
-    ax1 = axs[0, 0]
-    ax2 = axs[0, 1]
-    ax3 = axs[1, 0]
-    ax4 = axs[1, 1]
-
-    x = np.random.randn(20, 20)
-    x[5, :] = 0.
-    x[:, 12] = 0.
-
-
-    ax1.spy(custom.A.todense(), precision=0.1)
-    ax2.spy(custom.perm.todense(), precision=0.1, markersize=5)
-    """
-    M = custom.A.copy()
-    print(custom.D.diagonal())
-    print(custom.A.todense())
     custom.cuthill()
-    print(custom.A.todense())
-    """
-    ax3.spy(custom.A.todense(), precision=0.1)
-    ax4.spy(custom.perm.todense(), precision=0.1, markersize=5)
 
-
-
-    plt.show()
-    """
-
-    logging.error(f"Rounding error while inverting: {(custom.invert()*custom.A-identity(custom.dim)).max()}")
-    logging.error(f"Rounding error while inverting: {(custom.D*custom.inverse_D()-identity(custom.dim)).max()}")
-    logging.error(f"Rounding error while inverting: {(custom.perm*custom.perm.transpose()-identity(custom.dim)).max()}")
-    logging.error(f"Rounding error while inverting: {(custom.Q*custom.Q.transpose()-identity(custom.dim)).max()}")
-    logging.error(f"Rounding error while inverting: {(custom.D*custom.inverse_D()-identity(custom.dim)).min()}")
-    logging.error(f"Rounding error while inverting: {(custom.perm*custom.perm.transpose()-identity(custom.dim)).min()}")
-    logging.error(f"Rounding error while inverting: {(custom.Q*custom.Q.transpose()-identity(custom.dim)).min()}")
-    print(custom.invert()*custom.A-identity(custom.dim).todense())
-    fig, axs = plt.subplots(3)
-    ax1 = axs[0]
-    ax2 = axs[1]
-    ax3 = axs[2]
-    ax1.spy(custom.perm.transpose()*M*custom.perm, precision = 0.001)    #(M- custom.Q.transpose() * custom.D * custom.Q).todense(), precision=0.01) #
-    ax2.spy(custom.A.todense(), precision=0.001)
-    ax3.spy(custom.invert().todense(), precision=0.001)
-    #print(((custom.perm.transpose() * custom.Q.transpose() * custom.inverse_D() * custom.Q *custom.perm)*custom.perm.transpose()*custom.Q.transpose()*custom.D*custom.Q*custom.perm).todense())
-    #plt.show()
-    print("P*P^t")
-    print(custom.inverse_D()*custom.Q*custom.Q.transpose()*custom.D)
+    logging.debug(f"Rounding error while inverting: {(custom.invert()*custom.A-identity(custom.dim).todense()).max()}")
