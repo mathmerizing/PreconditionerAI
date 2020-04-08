@@ -2,11 +2,14 @@ from scipy.sparse import dok_matrix , lil_matrix, csc_matrix , identity , linalg
 import os
 import numpy as np
 from Dataset.generateRandSparse import CustomSparse
+from Dataset.my_utils import millis, timeit
 import matplotlib.pyplot as plt
 from scipy import ndimage as ndi
 from skimage import feature
 from skimage.transform import hough_line, hough_line_peaks
 from matplotlib import cm
+import os
+import logging
 
 class Preconditioner():
     def __init__(self, system_matrix):
@@ -51,55 +54,93 @@ class Preconditioner():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG , format='[%(asctime)s] - [%(levelname)s] - %(message)s')
+
     # creating a test object
-    custom = CustomSparse(1000,0.01)
+    custom = CustomSparse(1000,0.2)
     custom.create([1,99])
 
+    """
     p = Preconditioner(custom.A)
-    p.print()
-
+    #p.print()
     p.invertDiagonal()
-    print(p * custom.A)
+    #print(p * custom.A)
+    """
 
+    # reduce bandwidth
     custom.cuthill()
 
-    inp = np.array(custom.A.todense())
-    inp2 = inp != 0.0
+    # find Preconditioner for sparse_matrix
+    sparse_matrix = load_npz(os.path.join("DealScripts","dataset", "cuthill", "system_1313_0.300000_0.200000.npz")) # custom.A
 
-    # Compute the Canny filter for two values of sigma
-    edges1 = feature.canny(inp2)
-    edges2 = feature.canny(inp2, sigma=3)
+    block_coordinates = []
+    cur = 0
+    # pic_size is only for visualization
+    pic_size = 32
 
-    test_img = edges2
+    logging.debug("Starting sophisticated block search")
 
-    # display results
-    fig, ((ax1, ax2), (ax3,ax4)) = plt.subplots(nrows=2, ncols=2, figsize=(8, 3),
-                                    sharex=True, sharey=True)
+    # find blocks using custom simplified edge detection (with L-shapes)
+    start_time = millis()
+    while (cur < sparse_matrix.shape[0]):
+        #sparsity_pattern = sparse_matrix[cur:cur+pic_size,cur:cur+pic_size].todense()!=0.0
 
-    ax1.imshow(inp2, cmap=plt.cm.gray)
-    ax1.axis('off')
-    ax1.set_title('noisy image', fontsize=20)
+        # average over L shape with i elements to the right and (i-1) elements to the bottom
+        values = []
+        for i in range(1,min(64,sparse_matrix.shape[0]-cur)):
+            L_to_right = abs(sparse_matrix[cur:cur+i,cur]!=0.0).mean()*i
+            L_to_bottom = abs(sparse_matrix[cur+i-1,cur+1:cur+i]!=0.0).mean()*(i-1) if i > 1 else 0
+            values.append((L_to_right+L_to_bottom) / (2*i-1))
 
-    ax2.imshow(edges1, cmap=plt.cm.gray)
-    ax2.axis('off')
-    ax2.set_title(r'Canny filter, $\sigma=1$', fontsize=20)
+        # calculate differences between consecutive values
+        diffs = np.array(values[1:]) - np.array(values[:-1])
 
-    ax3.imshow(edges2, cmap=plt.cm.gray)
-    ax3.axis('off')
-    ax3.set_title(r'Canny filter, $\sigma=3$', fontsize=20)
+        # multiply diffs by some scaling function
+        scaled_diffs = []
+        for i, num in enumerate(diffs):
+            scaled_diffs.append(num*min(i+1,10))
+        scaled_diffs = np.array(scaled_diffs)
 
-    # hough line detection
-    h, theta, d = hough_line(test_img, theta=np.linspace(-np.pi / 2, np.pi / 2, 360))
-    ax4.imshow(test_img, cmap=cm.gray)
-    origin = np.array((0, inp2.shape[1]))
-    for _, angle, dist in zip(*hough_line_peaks(h, theta, d)):
-        y0, y1 = (dist - origin * np.cos(angle)) / np.sin(angle)
-        ax4.plot(origin, (y0, y1), '-r')
-    ax4.set_xlim(origin)
-    ax4.set_ylim((inp2.shape[0], 0))
-    ax4.set_axis_off()
-    ax4.set_title('Huch!')
+        # find the index of the biggest scaled_diffs value
+        if (abs(sparse_matrix[cur+1:cur+20,cur]!=0.0).sum()+abs(sparse_matrix[cur,cur+1:cur+20]!=0.0).sum() == 0):
+            big_jump = 0
+        else:
+            big_jump = 0 if len(scaled_diffs) == 0 else np.argmax(abs(scaled_diffs))
 
-    fig.tight_layout()
+        # save the corners of the block
+        block_coordinates.append((cur,cur+big_jump))
+        cur += big_jump + 1;
 
-    plt.show()
+        """
+        # visualize sparsity_pattern and block_coordinates predictions
+        fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(8, 3),
+                                        sharex=False, sharey=False)
+        ax1.plot(list(range(pic_size)), abs(diffs[:pic_size]))
+        ax1.set_xticks(np.arange(pic_size))
+
+        ax2.plot(list(range(pic_size)), abs(scaled_diffs[:pic_size]))
+        ax2.set_xticks(np.arange(pic_size))
+
+        ax3.imshow(sparsity_pattern, cmap=plt.cm.gray, extent=[0, pic_size-1, 0, pic_size-1])
+        ax3.set_xticks(np.arange(pic_size))
+        ax3.set_yticks(np.arange(pic_size))
+
+        fig.suptitle(big_jump)
+        plt.show()
+        """
+    logging.debug("Starting Preconditioner")
+    prec_test = Preconditioner(sparse_matrix)
+    prec_test.invert(block_coordinates)
+    print("Created Preconditioner")
+    logging.debug(f"Block Preconditioner took {(millis()-start_time)/1000} seconds.")
+
+    logging.debug(f"Condition sparse: {np.linalg.cond((sparse_matrix).todense())}")
+    logging.debug(f"Condition block Jacobi: {np.linalg.cond((prec_test * sparse_matrix).todense())}")
+
+    prec_bench = Preconditioner(sparse_matrix)
+    prec_bench.invertDiagonal()
+    logging.debug(f"Condition Jacobi: {np.linalg.cond((prec_bench * sparse_matrix).todense())}")
+
+    inv_start = millis()
+    np.linalg.inv(sparse_matrix.todense())
+    logging.debug(f"invert took {(millis()-inv_start)/1000} seconds.")
