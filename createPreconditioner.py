@@ -2,6 +2,11 @@ from scipy.sparse import dok_matrix , lil_matrix, csc_matrix , identity , linalg
 import os
 import numpy as np
 from Dataset.generateRandSparse import CustomSparse
+import matplotlib.pyplot as plt
+from scipy import ndimage as ndi
+from skimage import feature
+from skimage.transform import hough_line, hough_line_peaks
+from matplotlib import cm
 
 class Preconditioner():
     def __init__(self, system_matrix):
@@ -47,7 +52,7 @@ class Preconditioner():
 
 if __name__ == "__main__":
     # creating a test object
-    custom = CustomSparse(100,0.1)
+    custom = CustomSparse(1000,0.01)
     custom.create([1,99])
 
     p = Preconditioner(custom.A)
@@ -55,3 +60,46 @@ if __name__ == "__main__":
 
     p.invertDiagonal()
     print(p * custom.A)
+
+    custom.cuthill()
+
+    inp = np.array(custom.A.todense())
+    inp2 = inp != 0.0
+
+    # Compute the Canny filter for two values of sigma
+    edges1 = feature.canny(inp2)
+    edges2 = feature.canny(inp2, sigma=3)
+
+    test_img = edges2
+
+    # display results
+    fig, ((ax1, ax2), (ax3,ax4)) = plt.subplots(nrows=2, ncols=2, figsize=(8, 3),
+                                    sharex=True, sharey=True)
+
+    ax1.imshow(inp2, cmap=plt.cm.gray)
+    ax1.axis('off')
+    ax1.set_title('noisy image', fontsize=20)
+
+    ax2.imshow(edges1, cmap=plt.cm.gray)
+    ax2.axis('off')
+    ax2.set_title(r'Canny filter, $\sigma=1$', fontsize=20)
+
+    ax3.imshow(edges2, cmap=plt.cm.gray)
+    ax3.axis('off')
+    ax3.set_title(r'Canny filter, $\sigma=3$', fontsize=20)
+
+    # hough line detection
+    h, theta, d = hough_line(test_img, theta=np.linspace(-np.pi / 2, np.pi / 2, 360))
+    ax4.imshow(test_img, cmap=cm.gray)
+    origin = np.array((0, inp2.shape[1]))
+    for _, angle, dist in zip(*hough_line_peaks(h, theta, d)):
+        y0, y1 = (dist - origin * np.cos(angle)) / np.sin(angle)
+        ax4.plot(origin, (y0, y1), '-r')
+    ax4.set_xlim(origin)
+    ax4.set_ylim((inp2.shape[0], 0))
+    ax4.set_axis_off()
+    ax4.set_title('Huch!')
+
+    fig.tight_layout()
+
+    plt.show()

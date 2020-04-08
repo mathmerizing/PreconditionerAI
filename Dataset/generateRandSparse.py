@@ -4,7 +4,7 @@ import math
 from random import randint
 from scipy.sparse import dok_matrix , csc_matrix , identity , linalg, save_npz, load_npz
 from scipy.sparse.csgraph import reverse_cuthill_mckee
-from my_utils import timeit
+from .my_utils import timeit
 import logging
 import os
 import matplotlib.pyplot as plt
