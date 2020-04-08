@@ -5,4 +5,5 @@ Work in progress...
 - [x] Create artificial sparse matrices
 - [x] Boost performance of generation of 128x128 matrices
 - [x] Generate FEM Dateset (e.g. Poisson)
-- [ ] Create preconditioner P and P^{-1} from boolean array **_@all_**
+- [x] Create preconditioner P and P^{-1} from boolean array
+- [ ] Achieve better performance and faster preconditioner
