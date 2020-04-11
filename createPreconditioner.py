@@ -173,23 +173,5 @@ def benchmark(visualize=False):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG , format='[%(asctime)s] - [%(levelname)s] - %(message)s')
-
+    # run all performance tests
     benchmark()
-    """
-    logging.debug("Starting Preconditioner")
-    prec_test = Preconditioner(sparse_matrix)
-    prec_test.invert(block_coordinates)
-    print("Created Preconditioner")
-    logging.debug(f"Block Preconditioner took {(millis()-start_time)/1000} seconds.")
-
-    logging.debug(f"Condition sparse: {np.linalg.cond((sparse_matrix).todense())}")
-    logging.debug(f"Condition block Jacobi: {np.linalg.cond((prec_test * sparse_matrix).todense())}")
-
-    prec_bench = Preconditioner(sparse_matrix)
-    prec_bench.invertDiagonal()
-    logging.debug(f"Condition Jacobi: {np.linalg.cond((prec_bench * sparse_matrix).todense())}")
-
-    inv_start = millis()
-    np.linalg.inv(sparse_matrix.todense())
-    logging.debug(f"invert took {(millis()-inv_start)/1000} seconds.")
-    """
