@@ -65,7 +65,7 @@ class Preconditioner():
             scaled_diffs = np.array(scaled_diffs)
 
             # find the index of the biggest scaled_diffs value
-            if (abs(self.system[cur+1:cur+20,cur]!=0.0).sum()+abs(self.system[cur,cur+1:cur+20]!=0.0).sum() == 0):
+            if (abs(self.system[cur,cur+1:cur+20]!=0.0).sum() == 0): # abs(self.system[cur+1:cur+20,cur]!=0.0).sum()+
                 big_jump = 0
             else:
                 if (scaling):
@@ -75,10 +75,10 @@ class Preconditioner():
 
             # save the corners of the block
             block_coordinates.append((cur,cur+big_jump))
-            cur += big_jump + 1;
 
             if (visualize):
-                sparsity_pattern = self.system[cur:cur+pic_size,cur:cur+pic_size].todense()!=0.0
+                sparsity_pattern = abs(self.system[cur:cur+pic_size,cur:cur+pic_size].todense()) > 1e-6
+
                 # visualize sparsity_pattern and block_coordinates predictions
                 fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(8, 3),
                                                 sharex=False, sharey=False)
@@ -95,11 +95,81 @@ class Preconditioner():
                 fig.suptitle(big_jump)
                 plt.show()
 
+            cur += big_jump + 1;
+
         return block_coordinates
 
     @timeit
     def detectAndInvertBlocks(self,visualize):
         self.invert(self.detectBlocks(visualize))
+
+    @timeit
+    def detectSchwarzBlocks(self,visualize,scaling=True,overlap=2):
+        block_coordinates = []
+        cur = 0
+        # pic_size is only for visualization
+        pic_size = 32
+
+        # find blocks using custom simplified edge detection (with L-shapes)
+        while (cur < self.dim):
+            # average over L shape with i elements to the right and (i-1) elements to the bottom
+            values = []
+            for i in range(1,min(64,self.dim-cur)):
+                L_to_right = abs(self.system[cur:cur+i,cur]!=0.0).mean()*i
+                L_to_bottom = abs(self.system[cur+i-1,cur+1:cur+i]!=0.0).mean()*(i-1) if i > 1 else 0
+                values.append((L_to_right+L_to_bottom) / (2*i-1))
+
+            # calculate differences between consecutive values
+            diffs = np.array(values[1:]) - np.array(values[:-1])
+
+            # multiply diffs by some scaling function
+            scaled_diffs = []
+            for i, num in enumerate(diffs):
+                scaled_diffs.append(num*min(i+1,10))
+            scaled_diffs = np.array(scaled_diffs)
+
+            # find the index of the biggest scaled_diffs value
+            if (abs(self.system[cur,cur+1:cur+20]!=0.0).sum() == 0): # abs(self.system[cur+1:cur+20,cur]!=0.0).sum()+
+                big_jump = 0
+            else:
+                if (scaling):
+                    big_jump = 0 if len(scaled_diffs) == 0 else np.argmax(abs(scaled_diffs))
+                else:
+                    big_jump = 0 if len(diffs) == 0 else np.argmax(abs(diffs))
+
+            # save the corners of the block if not contained in last block
+            if len(block_coordinates) == 0 or block_coordinates[-1][1] < cur+big_jump:
+                block_coordinates.append((cur,cur+big_jump))
+
+            if (visualize):
+                sparsity_pattern = abs(self.system[cur:cur+pic_size,cur:cur+pic_size].todense()) > 1e-6
+
+                # visualize sparsity_pattern and block_coordinates predictions
+                fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(8, 3),
+                                                sharex=False, sharey=False)
+                ax1.plot(list(range(pic_size)), abs(diffs[:pic_size]))
+                ax1.set_xticks(np.arange(pic_size))
+
+                ax2.plot(list(range(pic_size)), abs(scaled_diffs[:pic_size]))
+                ax2.set_xticks(np.arange(pic_size))
+
+                ax3.imshow(sparsity_pattern, cmap=plt.cm.gray, extent=[0, pic_size-1, 0, pic_size-1])
+                ax3.set_xticks(np.arange(pic_size))
+                ax3.set_yticks(np.arange(pic_size))
+
+                fig.suptitle(big_jump)
+                plt.show()
+
+            if big_jump < overlap:
+                cur += 1;
+            else:
+                cur += (big_jump - overlap) + 1
+
+        return block_coordinates
+
+    @timeit
+    def detectAndInvertSchwarzBlocks(self,visualize):
+        self.invert(self.detectSchwarzBlocks(visualize))
 
     def checkCondNum(self):
         logging.debug(f"Condition of system matrix                : {np.linalg.cond(self.system.todense())}")
@@ -127,6 +197,7 @@ def washingLineMatrix(dim=1024):
         matrix[i,i-1] = h_term * -1.0
         matrix[i,i]   = h_term *  2.0
         matrix[i,i+1] = h_term * -1.0
+
     return matrix
 
 def benchmarkSingle(matrix,visualize):
@@ -140,6 +211,12 @@ def benchmarkSingle(matrix,visualize):
     logging.debug("-- Block-Jacobi --")
     prec_block_jac = Preconditioner(matrix)
     prec_block_jac.detectAndInvertBlocks(visualize)
+    prec_block_jac.checkCondNum()
+
+    # test overlapping Block-Jacobi Schwarz Preconditioner
+    logging.debug("-- Schwarz --")
+    prec_block_jac = Preconditioner(matrix)
+    prec_block_jac.detectAndInvertSchwarzBlocks(visualize)
     prec_block_jac.checkCondNum()
 
     # How long does it take to invert the matrix?
