@@ -104,7 +104,8 @@ class Preconditioner():
         self.invert(self.detectBlocks(visualize))
 
     @timeit
-    def detectSchwarzBlocks(self,visualize,scaling=True,overlap=2):
+    def detectSchwarzBlocks(self,visualize,scaling=True):
+        overlap=self.dim
         block_coordinates = []
         cur = 0
         # pic_size is only for visualization
@@ -160,11 +161,13 @@ class Preconditioner():
                 fig.suptitle(big_jump)
                 plt.show()
 
+            cur += 1
+            """
             if big_jump < overlap:
                 cur += 1;
             else:
                 cur += (big_jump - overlap) + 1
-
+            """
         return block_coordinates
 
     @timeit
